@@ -36,7 +36,7 @@ fn prebuild(path: String, tick: time::Duration) {
     println!("{}", path);
     let mut r = match fs::read(path.as_str()) {
         Result::Ok(res) => res,
-        Result::Err(err) => {
+        Result::Err(_) => {
             println!("❌ Error during reading a file");
             println!("📁 Reaing itself");
             match fs::read(env::current_exe().unwrap().as_os_str().to_str().unwrap()) {
@@ -69,10 +69,12 @@ fn graphics(r: &mut String, path: String, tick: time::Duration) {
     nc::start_color();
     nc::refresh();
     nc::curs_set(nc::CURSOR_VISIBILITY::CURSOR_INVISIBLE);
-    nc::border(0, 0, 0, 0, 0, 0, 0, 0);
-    nc::refresh();
 
-    let LINES = nc::getmaxy(nc::stdscr()) as u16;
+    let LINES = (if nc::getmaxy(nc::stdscr()) % 2 == 0 {
+        nc::getmaxy(nc::stdscr())
+    } else {
+        nc::getmaxy(nc::stdscr()) - 1
+    }) as u16;
     let COLUMNS = nc::getmaxx(nc::stdscr()) as u16;
     nc::init_pair(1, nc::COLOR_BLACK, nc::COLOR_GREEN);
     nc::init_pair(2, nc::COLOR_BLACK, nc::COLOR_RED);
@@ -81,6 +83,11 @@ fn graphics(r: &mut String, path: String, tick: time::Duration) {
     nc::init_pair(5, nc::COLOR_BLACK, nc::COLOR_BLUE);
     nc::init_pair(6, nc::COLOR_BLACK, nc::COLOR_YELLOW);
     nc::init_pair(7, nc::COLOR_MAGENTA, nc::COLOR_BLACK);
+
+    let g = nc::newwin(LINES as i32, COLUMNS as i32, 0, 0);
+    nc::wborder(g, 0, 0, 0, 0, 0, 0, nc::ACS_HLINE(), 0);
+    nc::wrefresh(g);
+    nc::refresh();
 
     let w = nc::newwin(LINES as i32, 5, 0, 0);
     nc::wborder(
@@ -138,58 +145,56 @@ fn graphics(r: &mut String, path: String, tick: time::Duration) {
             .as_str()
         });
 
-        if LINES % 2 == 0 {
-            let ost: i16 = (LINES as i16) / 2 - 1;
-            if diff > cent + ost as i128 {
-                cent += 1;
-            } else if diff < cent - ost as i128 + 1 {
-                cent -= 1;
-            }
-            nc::color_set(6);
-            for i in (0 - ost)..ost {
-                nc::color_set(if i == 0 {
-                    4
-                } else if (cent - i as i128) >= 0 {
-                    6
-                } else {
-                    5
-                });
-                nc::mv((1 + i + ost) as i32, 0);
-                nc::addstr((beautify(cent - i as i128)).as_str());
-            }
+        let ost: i16 = (LINES as i16) / 2 - 1;
+        if diff > cent + ost as i128 {
+            cent += 1;
+        } else if diff < cent - ost as i128 + 1 {
+            cent -= 1;
+        }
+        nc::color_set(6);
+        for i in (0 - ost)..ost {
+            nc::color_set(if i == 0 {
+                4
+            } else if (cent - i as i128) >= 0 {
+                6
+            } else {
+                5
+            });
+            nc::mv((1 + i + ost) as i32, 0);
+            nc::addstr((beautify(cent - i as i128)).as_str());
+        }
 
-            nc::mv(ost as i32 + 1, 4);
-            nc::color_set(7);
-            nc::addch(nc::ACS_LTEE());
-            for i in 0..(COLUMNS - 5 - 1) {
-                nc::addch(nc::ACS_HLINE());
-            }
-            nc::addch(nc::ACS_RTEE());
+        nc::mv(ost as i32 + 1, 4);
+        nc::color_set(7);
+        nc::addch(nc::ACS_LTEE());
+        for i in 0..(COLUMNS - 5 - 1) {
+            nc::addch(nc::ACS_HLINE());
+        }
+        nc::addch(nc::ACS_RTEE());
 
-            for i in 0..hist.len() {
-                let val = hist[i];
-                if val > cent + ost as i128 || val <= cent - ost as i128 {
-                    continue;
-                } 
-                let c: char;
-                if i == 0 {
-                    nc::color_set(if up { 1 } else { 2 });
-                } else {
-                    nc::color_set(if hist[i] > hist[i - 1] { 1 } else { 2 });
-                }
-                nc::mv((ost + (cent - val) as i16 + 1) as i32, 5 + (i as i32));
-                nc::addch(nc::ACS_BLOCK());
-                if cent - val != 0 {
-                    nc::color_set(3);
-                    nc::mv((ost + (cent - val) as i16 + 1) as i32, 4);
-                    nc::addch(nc::ACS_VLINE());
-                } else {
-                    nc::color_set(7);
-                    nc::mv((ost + (cent - val) as i16 + 1) as i32, 4);
-                    nc::addch(nc::ACS_LTEE());
-                }
+        for i in 0..hist.len() {
+            let val = hist[i];
+            if val > cent + ost as i128 || val <= cent - ost as i128 {
+                continue;
             }
-        } //todo: else
+            let c: char;
+            if i == 0 {
+                nc::color_set(if up { 1 } else { 2 });
+            } else {
+                nc::color_set(if hist[i] > hist[i - 1] { 1 } else { 2 });
+            }
+            nc::mv((ost + (cent - val) as i16 + 1) as i32, 5 + (i as i32));
+            nc::addch(nc::ACS_BLOCK());
+            if cent - val != 0 {
+                nc::color_set(3);
+                nc::mv((ost + (cent - val) as i16 + 1) as i32, 4);
+                nc::addch(nc::ACS_VLINE());
+            } else {
+                nc::color_set(7);
+                nc::mv((ost + (cent - val) as i16 + 1) as i32, 4);
+                nc::addch(nc::ACS_LTEE());
+            }
+        }
 
         nc::wrefresh(nc::stdscr());
         nc::color_set(3);
